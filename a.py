@@ -1,11 +1,11 @@
-from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from datetime import datetime, timedelta
 import json
 from multiprocessing.pool import ThreadPool
 import ssl
-from threading import Lock
 import time
-from aio.event_loop import EventLoop
+from typing import Callable
 from aio.promise import Promise
+from aio.scheduler import get_scheduler
 from aio.task import Task
 import urllib.request
 import yaml
@@ -20,11 +20,8 @@ with open('log.yml') as stream:
 logger = logging.getLogger(__name__)
 
 
-def get_event_loop():
-    return EventLoop()
-
-
 def t0():
+
     p = Promise()
 
     # yield p
@@ -39,10 +36,19 @@ def t0():
 #     return 't4'
 
 
-def t1():
-    p = Promise()
+def task(func: Callable):
 
-    yield p
+    def wraper(*args, **kwargs):
+        p = Promise()
+        result = func(*args, **kwargs)
+        yield p
+        return result
+
+    return wraper
+
+
+@task
+def t1():
     return 't1'
 
 
@@ -61,22 +67,25 @@ def run_action(url: str):
         return response
 
 
-pl = ThreadPool()
+pool = ThreadPool()
 
 
 def get():
     p = Promise()
 
     def callback(f):
-        # Если влкючить, то будет ValueError: generator already executing
+        # Если включить, то будет ValueError: generator already executing
         # наверно из-за того, что в while ниже уже yield-ится
         p.set_result(f)
+
         # logger.info(f"f: {f}")
 
-    ar = pl.apply_async(run_action,
-                        args=('https://jsonplaceholder.typicode.com/todos/1', ),
-                        callback=callback)
-    # не знаю, кмк по-другому заставить ждать выполнения зароса. Если не поставить, то выходит раньше, чем успевает получить реузльтат
+    ar = pool.apply_async(run_action,
+                          args=('https://jsonplaceholder.typicode.com/todos/1', ),
+                          callback=callback)
+
+    # не знаю, кмк по-другому заставить ждать выполнения зароса. Если не поставить, то выходит
+    # раньше, чем успевает получить реузльтат
     while not ar.ready():
         yield p
 
@@ -96,21 +105,22 @@ def t2():
     return ugu
 
 
-# def main():
-#     p = Promise()
-
-#     r = yield from t2()
-#     yield p
-#     return 'end'
-
 if __name__ == '__main__':
     logger.info(f'start: {time.time()}')
     time0 = time.time()
-    get_event_loop().add_task(Task(coro=t0()))
+    get_scheduler().schedule(
+        Task(coro=get(),
+             start_at=datetime.now() + timedelta(seconds=3),
+             timeout=timedelta(seconds=10),
+             dependencies=[Task(coro=t0()), Task(coro=t0()),
+                           Task(coro=t0())]))
+    get_scheduler().schedule(Task(coro=t2()))
     # get_event_loop().add_task(Task(coro=get()))
     # get_event_loop().add_task(Task(coro=get()))
     # get_event_loop().add_task(Task(coro=get()))
 
-    get_event_loop().run()
+    get_scheduler().run()
     print(time.time() - time0)
+    pool.close()
+    pool.join()
     logger.info('end loop')
