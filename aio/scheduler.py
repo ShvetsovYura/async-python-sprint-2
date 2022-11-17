@@ -7,7 +7,8 @@ from aio.task import Task
 
 import threading
 
-from exceptions import SchedulePoolOverflowException, TaskExecutionTimeout
+from exceptions import (NegativePoolSizeException, PoolOverflowException,
+                        PoolSizeNotReducedException, TaskExecutionTimeout)
 
 
 class SchedulerStatus(Enum):
@@ -30,20 +31,27 @@ class SingletonType(type):
 class Scheduler(metaclass=SingletonType):
 
     def __init__(self, pool_size=3):
+        if pool_size <= 0:
+            raise NegativePoolSizeException()
+
         self._pool_size = pool_size
         self._status = SchedulerStatus.INIT
         self._tasks: list[Task] = []
 
-    def schedule(self, task: Task):
+    def increase_pool_size_to(self, new_pool_size: int) -> None:
+        if new_pool_size < self._pool_size:
+            raise PoolSizeNotReducedException()
+
+        self._pool_size = new_pool_size
+
+    def schedule_task(self, task: Task):
         if len(self._tasks) >= self._pool_size:
-            raise SchedulePoolOverflowException(
-                "Превышено количество одновренменно доступных к выполнению задач ")
+            raise PoolOverflowException()
 
         subtasks = self._unpack_subtaskstasks(task.dependencies)
 
         if sum([len(self._tasks), len(subtasks)]) > self._pool_size:
-            raise SchedulePoolOverflowException(
-                "Превышено количество одновренменно доступных к выполнению задач ")
+            raise PoolOverflowException()
 
         self._tasks.append(task)
         self._tasks.extend(subtasks)

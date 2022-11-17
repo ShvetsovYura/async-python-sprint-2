@@ -1,87 +1,110 @@
-import asyncio
-import json
-import logging
-import ssl
-import sys
+from datetime import datetime, timedelta
+from multiprocessing.pool import ThreadPool
 import time
-from actions import RequestAction, SubtaskAction
-from event_loop import EventLoop
-from utils import coroutine, request
-from task import Task
-import urllib.request
+from typing import Callable
+from aio.promise import Promise
+from aio.scheduler import get_scheduler
+from aio.task import Task
+import yaml
+import logging.config
+import logging
 
+from utils import request
 
-def run_req(n: int):
-    yield from asyncio.sleep(0)
-    yield from request("https://code.s3.yandex.net/async-module/moscow-response.json", n)
+with open('log.yml') as stream:
+    config = yaml.safe_load(stream)
 
-
-def main():
-    t0 = time.time()
-    coros = [run_req(r) for r in range(10)]
-    print('start while')
-    while True:
-        for coro in coros.copy():
-
-            try:
-                coro.send(None)
-            except StopIteration:
-                coros.remove(coro)
-        if not coros:
-            print(time.time() - t0)
-            break
-
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(message)s",
-    stream=sys.stdout,
-)
+    logging.config.dictConfig(config.get('logging'))
 
 logger = logging.getLogger(__name__)
 
 
-def do():
-    logger.info("berfore yield")
+def t0():
 
-    yield 1
+    p = Promise()
 
-    logger.info("after yield")
+    # yield p
+    yield p
+    return 't0'
+
+
+# def t4():
+#     p = Promise()
+
+#     yield p
+#     return 't4'
+
+
+def task(func: Callable):
+
+    def wraper(*args, **kwargs):
+        p = Promise()
+        result = func(*args, **kwargs)
+        yield p
+        return result
+
+    return wraper
+
+
+@task
+def t1():
+    return 't1'
+
+
+pool = ThreadPool()
+
+
+def get():
+    p = Promise()
+
+    def callback(f):
+        # Если включить, то будет ValueError: generator already executing
+        # наверно из-за того, что в while ниже уже yield-ится
+        p.set_result(f)
+
+        # logger.info(f"f: {f}")
+
+    ar = pool.apply_async(request,
+                          args=('https://jsonplaceholder.typicode.com/todos/1', ),
+                          callback=callback)
+
+    # не знаю, кмк по-другому заставить ждать выполнения зароса. Если не поставить, то выходит
+    # раньше, чем успевает получить реузльтат
+    while not ar.ready():
+        yield p
+
+    return p.result
+
+
+def t2():
+    p = Promise()
+
+    res = yield from t0()
+    logger.info(f"res: {res}")
+    ugu = yield from get()
+    logger.info(f'ugu:{ugu}')
+    res1 = yield from t1()
+    logger.info(f'res1: {res1}')
+    yield p
+    return ugu
 
 
 if __name__ == '__main__':
+    logger.info(f'start: {time.time()}')
+    time0 = time.time()
+    get_scheduler().schedule_task(
+        Task(coro=get(),
+             start_at=datetime.now() + timedelta(seconds=3),
+             max_working_time=timedelta(seconds=10),
+             dependencies=[Task(coro=t0()), Task(coro=t0()),
+                           Task(coro=t0())]))
+    get_scheduler().schedule_task(Task(coro=t2()))
+    # get_event_loop().add_task(Task(coro=get()))
+    # get_event_loop().add_task(Task(coro=get()))
+    # get_event_loop().add_task(Task(coro=get()))
 
-    logger.info("start app")
-    ev = EventLoop()
-
-    for i in range(2):
-
-        ev.add_task(
-            Task(action=RequestAction(),
-                 dependencies=[
-                     Task(action=SubtaskAction()),
-                     Task(action=SubtaskAction()),
-                     Task(action=SubtaskAction(), max_working_time=1)
-                 ],
-                 url="https://code.s3.yandex.net/async-module/moscow-response.json"))
-
-    ev.run()
-
-    # coros = [RequestJob().run() for _ in range(1)]
-
-    # coro = RequestJob().run()
-    # coro.send(None)
-    # coro.send("https://code.s3.yandex.net/async-module/moscow-response.json")
-    # while True:
-    #     try:
-    #         next(coro)
-    #     except StopIteration as e:
-    #         print(e.value)
-
-    # while True:
-    #     for coro in coros.copy():
-    #         try:
-    #             coro.send(None)
-    #         except StopIteration:
-    #             print('Stop ineration')
-    #             coros.remove(coro)
+    get_scheduler().run()
+    print(time.time() - time0)
+    pool.close()
+    pool.join()
+    logger.info('end loop')
