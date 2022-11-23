@@ -16,7 +16,7 @@ class TestScheduler(TestCase):
         self.assertEqual(20, self._sched._pool_size)
 
     def test__increase_pool_size_to__reduce(self):
-        self._sched.increase_pool_size_to(5)
+        self._sched.increase_pool_size_to(15)
 
         self.assertRaises(PoolSizeNotReducedException)
 

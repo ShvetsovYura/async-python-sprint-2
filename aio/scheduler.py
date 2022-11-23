@@ -30,7 +30,7 @@ class SingletonType(type):
 
 class Scheduler(metaclass=SingletonType):
 
-    def __init__(self, pool_size=3):
+    def __init__(self, pool_size=10):
         if pool_size <= 0:
             raise NegativePoolSizeException()
 
@@ -45,6 +45,9 @@ class Scheduler(metaclass=SingletonType):
         self._pool_size = new_pool_size
 
     def schedule_task(self, task: Task):
+        """
+        Добавление задачи в общий спасиок задач
+        """
         if len(self._tasks) >= self._pool_size:
             raise PoolOverflowException()
 
@@ -55,14 +58,21 @@ class Scheduler(metaclass=SingletonType):
 
         self._tasks.append(task)
         self._tasks.extend(subtasks)
+        self._sort_tasks()
+
+    def _sort_tasks(self):
         self._tasks.sort(key=lambda task: task._start_at, reverse=False)
 
-    def _unpack_subtaskstasks(self, tasks: list[Task]):
+    def _unpack_subtaskstasks(self, tasks: list[Task]) -> list[Task]:
+        """
+        Рекурсивно распаковывает подзадачи текущей задачи
+        и их подзадачи (и т.д.) в плоский список
+        """
         result = []
-        for t in tasks:
-            if len(t.dependencies) > 0:
-                result.extend(self._unpack_subtaskstasks(t.dependencies))
-            result.append(t)
+        for task in tasks:
+            if len(task.dependencies) > 0:
+                result.extend(self._unpack_subtaskstasks(task.dependencies))
+            result.append(task)
         return result
 
     def run(self):
@@ -79,9 +89,12 @@ class Scheduler(metaclass=SingletonType):
 
         # важно смотреть на все задачи, а не только на те, которые готовы
         while self._tasks and self._status == SchedulerStatus.RUNING:
+            # нужно, чтобы ослеживать те таски, которые ушли на следующий круг
+            self._sort_tasks()
+
             tasks = self._tasks.copy()
             # фильтрация задач, которые уже должны быть исполнены
-            tasks_ready_to_run = filter(lambda t: t.awailable_to_run(), self._tasks)
+            tasks_ready_to_run = list(filter(lambda t: t.awailable_to_run(), self._tasks))
             # если есть задачи, которые должны быть выполнены - то yeld'имся по-ним
             # в противном случае - ждем (гасим поток) на время до первой ожидающей задачи
             # нужно не забывать, что при добавлении таска в очередь шедулера - они сотрируются

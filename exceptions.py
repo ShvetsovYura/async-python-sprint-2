@@ -28,3 +28,9 @@ class NegativePoolSizeException(Exception):
             message='Нельзя делать отрицательный размер одновременно выполняемых задач') -> None:
 
         super().__init__(message)
+
+
+class LimitAttemptsExhausted(Exception):
+
+    def __init__(self, task_id: str, message="Лимит попыток запуска задачи исчерпан") -> None:
+        super().__init__(f"{message}:{task_id}")
