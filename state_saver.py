@@ -37,7 +37,7 @@ class EnhancedJsonEncoder(json.JSONEncoder):
 class StateSaver:
 
     @staticmethod
-    def save_task(task: 'Task'):
+    def save_task(task):
         with open('task_.json', 'w+') as t:
             json.dump(task.__dict__, t, cls=EnhancedJsonEncoder)
 
@@ -45,7 +45,7 @@ class StateSaver:
 class StateDeserializer:
 
     @staticmethod
-    def restore_task() -> 'Task':
+    def restore_task():
 
         # как восстанавливать задачи - я так и не понял, ведь есть зависимости, статус корутин и т.д
         # как заставить это работаь - не вкурил
