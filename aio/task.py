@@ -1,11 +1,12 @@
 from enum import Enum
 import logging
-from typing import Callable, Generator, Optional
+from typing import Any, Callable, Generator, Optional
 import uuid
 from datetime import datetime, timedelta
 
 from aio.promise import Promise
 from exceptions import LimitAttemptsExhausted, TaskExecutionTimeout
+from state_saver import StateSaver
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class Task(Promise):
 
         # сохраняем корутину для создания новой если теущую задачу нужно перезапустить
         self._coro: Generator = coro(*self._args, **self._kwargs)
-        self.__origin_coro = coro
+        self._origin_coro = coro
 
         self._status = TaskStatus.INIT
         self._id = uuid.uuid4()
@@ -48,6 +49,7 @@ class Task(Promise):
         self._tries = tries
         self._timeout_between_trying = timedelta(seconds=2.1)
         self._current_attempts = 0
+        self._steps: list[Any] = []
 
         # При инициализации таски - проворачиваем ее один раз со значпением None,
         # т.е. инициализация
@@ -94,7 +96,7 @@ class Task(Promise):
         # если количество попыток исчерпалось - прибить корутину
         self._coro.close()
         # ...и создать новую из оригинальной
-        self._coro = self.__origin_coro(*self._args, **self._kwargs)
+        self._coro = self._origin_coro(*self._args, **self._kwargs)
 
     def _planning_trying_task(self):
         """
@@ -140,10 +142,13 @@ class Task(Promise):
             # результат пироворачивания генератора - общеание -
             # объект, содержащий результат выполения
             promise = self._coro.send(res)
+            self._steps.append(res)
         except StopIteration as e:
             logger.info(f"value: {e.value}")
             self.set_result(e.value)
+            self._steps.append(e.value)
             self._status = TaskStatus.COMPLETE
+            StateSaver.save_task(self)
             return
         except TaskExecutionTimeout:
             self._planning_trying_task()

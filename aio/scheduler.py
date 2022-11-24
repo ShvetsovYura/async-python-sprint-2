@@ -83,6 +83,7 @@ class Scheduler(metaclass=SingletonType):
         pass
 
     def stop(self):
+        # здесь надобы сохранять состояние задач
         self._status = SchedulerStatus.PAUSED
 
     def _run_event_loop(self):
