@@ -21,18 +21,15 @@ def fetch_weather_forecast(city: str):
     if not city_url:
         raise Exception("Такого города нет в списе")
 
-    p = Promise()
-
     # Убрал работу с тредами (и колбеэками).
     # Но так код получается блокирующим, конечно.
     # Как сделать по-настоящему асинхронным запрос по http-
     # стандартными средствами - не понял и в этих ваших интернетах не нашел
 
     result = request(city_url)
-    yield p
-    p.set_result(result=result)
+    yield
 
-    return p.result
+    return result
 
 
 def fetch_all_data():
@@ -50,17 +47,15 @@ def calc_data():
 
 
 def pipe():
-    p = Promise()
+
     res = yield from calc_data()
 
-    yield p
     return res
 
 
 def subtask():
-    p = Promise()
     b = 1 + 1
-    yield p
+    yield
     return b
 
 

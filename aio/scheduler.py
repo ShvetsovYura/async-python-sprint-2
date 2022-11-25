@@ -6,7 +6,6 @@ from datetime import datetime
 import time
 from aio.task import Task
 
-import threading
 
 from exceptions import (LimitAttemptsExhausted, NegativePoolSizeException,
                         PoolOverflowException, PoolSizeNotReducedException,

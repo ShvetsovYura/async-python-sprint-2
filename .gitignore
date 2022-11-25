@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 .venv
 .vscode
+tast_.json

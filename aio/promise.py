@@ -1,24 +1,10 @@
-from typing import Any, Callable
 
 
 class Promise:
     """ Класс хранит состояние вызова """
 
-    def __init__(self):
-        self._callbacks: list[Callable] = []
+    def __get__(self, instance, owner):
+        return instance.__dict__['result']
 
-        self._result = None
-
-    def add_done_callback(self, callback: Callable) -> None:
-        self._callbacks.append(callback)
-
-    @property
-    def result(self):
-        return self._result
-
-    def set_result(self, result: Any):
-        self._result = result
-
-        # оказалось лишним - одни проблемы
-        # for callback in self._callbacks:
-        #     callback(self)
+    def __set__(self, instance, value):
+        instance.__dict__['result'] = value

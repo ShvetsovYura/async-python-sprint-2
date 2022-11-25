@@ -18,7 +18,8 @@ class TaskStatus(Enum):
     COMPLETE = "COMPLETE"
 
 
-class Task(Promise):
+class Task:
+    result = Promise()
 
     def __init__(self,
                  coro: Callable,
@@ -53,9 +54,8 @@ class Task(Promise):
 
         # При инициализации таски - проворачиваем ее один раз со значпением None,
         # т.е. инициализация
-        p = Promise()
-        p.set_result(None)
-        self.set_result(None)
+
+        self.result = None
 
     @property
     def is_done(self) -> bool:
@@ -125,7 +125,7 @@ class Task(Promise):
         self._coro.close()
         self._status = TaskStatus.COMPLETE
 
-    def run_step(self, promise: Optional[Promise] = None) -> None:
+    def run_step(self) -> None:
 
         self._status = TaskStatus.RUNNING
         # если время для запуска еще не наступило
@@ -137,15 +137,13 @@ class Task(Promise):
             if self._timeout and self.running_duration > self._timeout:
                 self._coro.throw(TaskExecutionTimeout())
 
-            res = promise.result if promise else None
-
             # результат пироворачивания генератора - общеание -
             # объект, содержащий результат выполения
-            promise = self._coro.send(res)
-            self._steps.append(res)
+            self.result = self._coro.send(self.result)
+            self._steps.append(self.result)
         except StopIteration as e:
-            logger.info(f"value: {e.value}")
-            self.set_result(e.value)
+            self.result = e.value
+            logger.info(f"value: {self.result}")
             self._steps.append(e.value)
             self._status = TaskStatus.COMPLETE
             StateSaver.save_task(self)
@@ -154,5 +152,5 @@ class Task(Promise):
             self._planning_trying_task()
 
         except Exception as e:
-            logger.error(e)  # type: ignore
+            logger.error(e)
             self._planning_trying_task()
