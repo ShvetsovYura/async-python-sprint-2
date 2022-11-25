@@ -154,5 +154,5 @@ class Task(Promise):
             self._planning_trying_task()
 
         except Exception as e:
-            logger.error(e.message)  # type: ignore
+            logger.error(e)  # type: ignore
             self._planning_trying_task()

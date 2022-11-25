@@ -7,7 +7,7 @@ from exceptions import NegativePoolSizeException, PoolSizeNotReducedException
 class TestScheduler(TestCase):
 
     def setUp(self) -> None:
-        super().setUp()
+
         self._sched = Scheduler()
 
     def test__increase_pool_size_to__success(self):
