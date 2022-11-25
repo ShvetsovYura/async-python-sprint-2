@@ -3,6 +3,7 @@ from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import Union
 from aio.promise import Promise
+from exceptions import ArgumentNotPassed, IncorrentPathType
 
 from utils import CITIES, request
 
@@ -13,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 def fetch_weather_forecast(city: str):
     if not city:
-        raise Exception("Не указан параметр")
+        raise ArgumentNotPassed()
 
     city_url = CITIES.get(city.upper())
 
@@ -70,7 +71,7 @@ def _check_path_type(path: Union[Path, str]) -> Path:
     elif isinstance(path, str):
         return Path(path)
     else:
-        raise Exception("Incorrect path type")
+        raise IncorrentPathType()
 
 
 def create_directory(path: Union[Path, str]):

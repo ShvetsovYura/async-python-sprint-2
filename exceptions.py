@@ -30,3 +30,11 @@ class LimitAttemptsExhausted(BaseException):
 
 class DataFetchingException(BaseException):
     message = "Ошибка во время выполенния HTTP запроса"
+
+
+class ArgumentNotPassed(BaseException):
+    message = "Аргумент не передан"
+
+
+class IncorrentPathType(BaseException):
+    message = "Неверны тип пути"

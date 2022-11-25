@@ -135,8 +135,7 @@ class Task(Promise):
         try:
             # если превышено вермя выполениня
             if self._timeout and self.running_duration > self._timeout:
-                self._coro.throw(
-                    TaskExecutionTimeout("Время на выполнение задачи истекло"))
+                self._coro.throw(TaskExecutionTimeout())
 
             res = promise.result if promise else None
 
@@ -155,5 +154,5 @@ class Task(Promise):
             self._planning_trying_task()
 
         except Exception as e:
-            logger.error(e.message)
+            logger.error(e.message)  # type: ignore
             self._planning_trying_task()

@@ -24,7 +24,9 @@ class TestTask(TestCase):
 
     def test__subtasks_is_done__not_done_subtasks(self):
 
-        t = Task(coro=self._coro, dependencies=[Task(coro=self._coro)], tries=-1)
+        t = Task(coro=self._coro,
+                 dependencies=[Task(coro=self._coro)],
+                 tries=-1)
         result = t._check_subtasks_is_done()
 
         self.assertEqual(False, result)
@@ -34,7 +36,9 @@ class TestTask(TestCase):
 
         done_subtask = Task(coro=self._coro)
         done_subtask._status == TaskStatus.COMPLETE
-        t = Task(coro=self._coro, dependencies=[Task(coro=self._coro)], tries=-1)
+        t = Task(coro=self._coro,
+                 dependencies=[Task(coro=self._coro)],
+                 tries=-1)
         result = t._check_subtasks_is_done()
 
         self.assertEqual(False, result)
@@ -62,5 +66,3 @@ class TestTask(TestCase):
             t.run_step()
             t.run_step()
             t.run_step()
-
-        # self.assertRaises(LimitAttemptsExhausted)
