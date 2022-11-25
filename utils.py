@@ -2,6 +2,7 @@ import json
 import logging.config
 import ssl
 import urllib.request
+from enum import Enum
 from urllib.error import HTTPError, URLError
 
 import yaml
@@ -68,3 +69,10 @@ def setup_log_config():
         config = yaml.safe_load(stream)
 
         logging.config.dictConfig(config.get('logging'))
+
+
+class RunningStatus(Enum):
+    INIT = 'INIT'
+    RUNNING = 'RUNNING'
+    PAUSED = 'PAUSED'
+    COMPLETE = "COMPLETE"

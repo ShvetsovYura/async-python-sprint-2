@@ -21,5 +21,5 @@ class TestScheduler(TestCase):
         self.assertRaises(PoolSizeNotReducedException)
 
     def test__create__with_negative_pool_size(self):
-        Scheduler(pool_size=-1)
-        self.assertRaises(NegativePoolSizeException)
+        with self.assertRaises(NegativePoolSizeException):
+            Scheduler(pool_size=-1)

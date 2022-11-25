@@ -1,4 +1,4 @@
-class Promise:
+class TaskResult:
     """ Класс хранит состояние вызова """
 
     def __get__(self, instance, owner):

@@ -1,25 +1,19 @@
 import logging
 import uuid
 from datetime import datetime, timedelta
-from enum import Enum
 from typing import Any, Callable, Generator, Optional
+from uuid import UUID
 
-from aio.promise import Promise
+from aio.promise import TaskResult
 from exceptions import LimitAttemptsExhausted, TaskExecutionTimeout
 from state_saver import StateSaver
+from utils import RunningStatus
 
 logger = logging.getLogger(__name__)
 
 
-class TaskStatus(Enum):
-    INIT = "INIT"
-    RUNNING = "RUNNING"
-    PAUSED = "PAUSED"
-    COMPLETE = "COMPLETE"
-
-
 class Task:
-    result = Promise()
+    result = TaskResult()
 
     def __init__(self,
                  coro: Callable,
@@ -30,36 +24,36 @@ class Task:
                  *args,
                  **kwargs):
         super().__init__()
-        self._init_dt = datetime.now()
+        self._init_dt: datetime = datetime.now()
         self._start_dt: Optional[datetime] = None
-        self._timeout = max_working_time
+        self._timeout: Optional[timedelta] = max_working_time
 
-        self._args = args
-        self._kwargs = kwargs
+        self._args: tuple[Any] = args
+        self._kwargs: dict[str, Any] = kwargs
 
         # сохраняем корутину для создания новой если теущую задачу нужно перезапустить
         self._coro: Generator = coro(*self._args, **self._kwargs)
-        self._origin_coro = coro
+        self._origin_coro: Callable = coro
 
-        self._status = TaskStatus.INIT
-        self._id = uuid.uuid4()
-        self._dependencies = dependencies
+        self._status: RunningStatus = RunningStatus.INIT
+        self._id: UUID = uuid.uuid4()
+        self._dependencies: list[Task] = dependencies
 
-        self._start_at = start_at
+        self._start_at: datetime = start_at
 
-        self._tries = tries
-        self._timeout_between_trying = timedelta(seconds=2.1)
-        self._current_attempts = 0
+        self._tries: int = tries
+        self._timeout_between_trying: timedelta = timedelta(seconds=2.1)
+        self._current_attempts: int = 0
         self._steps: list[Any] = []
 
         # При инициализации таски - проворачиваем ее один раз со значпением None,
         # т.е. инициализация
 
-        self.result = None
+        self.result: Any = None
 
     @property
     def is_done(self) -> bool:
-        return True if self._status == TaskStatus.COMPLETE else False
+        return True if self._status == RunningStatus.COMPLETE else False
 
     @property
     def id(self) -> uuid.UUID:
@@ -122,15 +116,15 @@ class Task:
             return False
 
     def pause(self) -> None:
-        self._status = TaskStatus.PAUSED
+        self._status = RunningStatus.PAUSED
 
     def stop(self) -> None:
         self._coro.close()
-        self._status = TaskStatus.COMPLETE
+        self._status = RunningStatus.COMPLETE
 
     def run_step(self) -> None:
 
-        self._status = TaskStatus.RUNNING
+        self._status = RunningStatus.RUNNING
         # если время для запуска еще не наступило
         if not self._start_dt:
             self._start_dt = datetime.now()
@@ -149,7 +143,7 @@ class Task:
             self.result = e.value
             logger.info(f"value tid:{self.id} = {self.result}")
             # self._steps.append(e.value)
-            self._status = TaskStatus.COMPLETE
+            self._status = RunningStatus.COMPLETE
             StateSaver.save_task(self)
             return
         except TaskExecutionTimeout:

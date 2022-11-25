@@ -1,30 +1,24 @@
 import logging
 import time
 from datetime import datetime
-from enum import Enum
 
 from aio.task import Task
 from exceptions import (LimitAttemptsExhausted, NegativePoolSizeException,
                         PoolOverflowException, PoolSizeNotReducedException,
                         TaskExecutionTimeout)
+from utils import RunningStatus
 
 logger = logging.getLogger(__name__)
 
 
-class SchedulerStatus(Enum):
-    INIT = 'INIT'
-    RUNING = 'RUNNING'
-    PAUSED = 'PAUSED'
-
-
 class Scheduler:
 
-    def __init__(self, pool_size=10):
+    def __init__(self, pool_size: int = 10):
         if pool_size <= 0:
             raise NegativePoolSizeException()
 
-        self._pool_size = pool_size
-        self._status = SchedulerStatus.INIT
+        self._pool_size: int = pool_size
+        self._status: RunningStatus = RunningStatus.INIT
         self._tasks: list[Task] = []
 
     def increase_pool_size_to(self, new_pool_size: int) -> None:
@@ -64,7 +58,7 @@ class Scheduler:
 
     def run(self):
         logger.info("Запуск расписания")
-        self._status = SchedulerStatus.RUNING
+        self._status = RunningStatus.RUNNING
         self._run_event_loop()
 
     def restart(self):
@@ -72,7 +66,7 @@ class Scheduler:
             task.restart()
 
     def pause(self):
-        self._status = SchedulerStatus.PAUSED
+        self._status = RunningStatus.PAUSED
 
     def stop(self):
         for task in self._tasks.copy():
@@ -94,7 +88,7 @@ class Scheduler:
     def _run_event_loop(self):
 
         # важно смотреть на все задачи, а не только на те, которые готовы
-        while self._tasks and self._status == SchedulerStatus.RUNING:
+        while self._tasks and self._status == RunningStatus.RUNNING:
             tasks_ready_to_run = self.get_tasks_ready_to_run()
             # если есть задачи, которые должны быть выполнены - то yeld'имся по-ним
             # в противном случае - ждем (гасим поток) на время до первой ожидающей задачи
