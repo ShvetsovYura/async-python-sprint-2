@@ -1,9 +1,10 @@
-from aio.scheduler import get_scheduler
-from aio.task import Task
-import logging.config
 import logging
-from functions import pipe, subtask
-from utils import setup_config
+import logging.config
+
+from aio.scheduler import Scheduler
+from aio.task import Task
+from functions import pipe_by_city, subtask
+from utils import setup_log_config
 
 logger = logging.getLogger(__name__)
 
@@ -15,13 +16,23 @@ logger = logging.getLogger(__name__)
 
 if __name__ == '__main__':
     logger.info("Начала работы приложения")
-    setup_config()
+    setup_log_config()
 
-    t = Task(coro=pipe, tries=5, dependencies=[Task(coro=subtask)])
-    get_scheduler().schedule_task(t)
+    t1 = Task(coro=pipe_by_city,
+              tries=5,
+              dependencies=[Task(coro=subtask)],
+              city="MOSCOW")
+    t2 = Task(coro=pipe_by_city,
+              tries=5,
+              dependencies=[Task(coro=subtask)],
+              city="PARIS")
+
+    scheduler = Scheduler()
+    scheduler.schedule_task(t1)
+    scheduler.schedule_task(t2)
 
     try:
-        get_scheduler().run()
+        scheduler.run()
     except KeyboardInterrupt:
         logger.info("Получен сигнал выхода, завершение...")
     finally:

@@ -1,8 +1,8 @@
-from enum import Enum
 import logging
-from typing import Any, Callable, Generator, Optional
 import uuid
 from datetime import datetime, timedelta
+from enum import Enum
+from typing import Any, Callable, Generator, Optional
 
 from aio.promise import Promise
 from exceptions import LimitAttemptsExhausted, TaskExecutionTimeout
@@ -69,6 +69,9 @@ class Task:
     def dependencies(self):
         return self._dependencies
 
+    def restart(self):
+        self._recreate_coro_from_origin()
+
     def _check_subtasks_is_done(self) -> bool:
         # если хотя бы одна из подзадач не готова - значит текущая таска не готова к работе
         for subtask in self._dependencies:
@@ -90,8 +93,7 @@ class Task:
 
         return (datetime.now() - self._start_dt)
 
-    def __recreate_coro_from_origin(self):
-        self._current_attempts += 1
+    def _recreate_coro_from_origin(self):
 
         # если количество попыток исчерпалось - прибить корутину
         self._coro.close()
@@ -108,7 +110,8 @@ class Task:
             raise LimitAttemptsExhausted()
 
         self._start_at += self._timeout_between_trying
-        self.__recreate_coro_from_origin()
+        self._current_attempts += 1
+        self._recreate_coro_from_origin()
 
     def awailable_to_run(self) -> bool:
         """ Проверяет, готова ли задача для выполнения """
@@ -136,15 +139,16 @@ class Task:
             # если превышено вермя выполениня
             if self._timeout and self.running_duration > self._timeout:
                 self._coro.throw(TaskExecutionTimeout())
-
+            logger.debug(f"tid:{self.id} {self.result}")
             # результат пироворачивания генератора - общеание -
             # объект, содержащий результат выполения
             self.result = self._coro.send(self.result)
-            self._steps.append(self.result)
+
+            # self._steps.append(self.result)
         except StopIteration as e:
             self.result = e.value
-            logger.info(f"value: {self.result}")
-            self._steps.append(e.value)
+            logger.info(f"value tid:{self.id} = {self.result}")
+            # self._steps.append(e.value)
             self._status = TaskStatus.COMPLETE
             StateSaver.save_task(self)
             return
@@ -152,5 +156,8 @@ class Task:
             self._planning_trying_task()
 
         except Exception as e:
-            logger.error(e)
+            if hasattr(e, 'message'):
+                logger.error(e.message)  # type: ignore
+            else:
+                logger.error(e)
             self._planning_trying_task()

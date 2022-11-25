@@ -1,10 +1,10 @@
 import json
-import ssl
-from urllib.error import HTTPError, URLError
-import yaml
 import logging.config
-
+import ssl
 import urllib.request
+from urllib.error import HTTPError, URLError
+
+import yaml
 
 from exceptions import DataFetchingException
 
@@ -63,7 +63,7 @@ def request(url: str):
         raise DataFetchingException()
 
 
-def setup_config():
+def setup_log_config():
     with open('log-config.yml') as stream:
         config = yaml.safe_load(stream)
 

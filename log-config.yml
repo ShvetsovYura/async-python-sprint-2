@@ -8,9 +8,9 @@ logging:
   handlers:
     console:
       class: logging.StreamHandler
-      level: "INFO"
+      level: "DEBUG"
       formatter: stdformat
       stream: "ext://sys.stdout"
   root:
-    level: "INFO"
+    level: "DEBUG"
     handlers: [ "console" ]

@@ -1,10 +1,10 @@
+import json
+import pickle
+import types
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-import json
-import types
 from typing import Any
-
 from uuid import UUID
 
 
@@ -13,19 +13,19 @@ class EnhancedJsonEncoder(json.JSONEncoder):
     def default(self, o: Any) -> Any:
 
         serialized_types = {
-            date: o.strftime("%Y-%m-%d"),
-            datetime: o.strftime("%Y-%m-%d %H:%M:%S"),
-            Decimal: str(o),
-            Enum: o.name,
-            timedelta: o.total_seconds(),
-            types.GeneratorType: o.__name__,
-            types.FunctionType: o.__name__,
-            UUID: str(o)
+            date: lambda: o.strftime("%Y-%m-%d"),
+            datetime: lambda: o.strftime("%Y-%m-%d %H:%M:%S"),
+            Decimal: lambda: str(o),
+            Enum: lambda: o.name,
+            timedelta: lambda: o.total_seconds(),
+            types.GeneratorType: lambda: o.__name__,
+            types.FunctionType: lambda: o.__name__,
+            UUID: lambda: str(o)
         }
 
         for _type in serialized_types:
             if isinstance(o, _type):
-                return serialized_types[_type]
+                return serialized_types[_type]()
         return super().default(o)
 
 
@@ -33,6 +33,7 @@ class StateSaver:
 
     @staticmethod
     def save_task(task):
+        bt = pickle.dumps(task, protocol=5)
         with open('task_.json', 'w+') as t:
             json.dump(task.__dict__, t, cls=EnhancedJsonEncoder)
 

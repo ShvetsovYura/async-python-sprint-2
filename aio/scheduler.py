@@ -1,12 +1,9 @@
-from enum import Enum
 import logging
-from aio.task import Task
-
-from datetime import datetime
 import time
+from datetime import datetime
+from enum import Enum
+
 from aio.task import Task
-
-
 from exceptions import (LimitAttemptsExhausted, NegativePoolSizeException,
                         PoolOverflowException, PoolSizeNotReducedException,
                         TaskExecutionTimeout)
@@ -20,18 +17,7 @@ class SchedulerStatus(Enum):
     PAUSED = 'PAUSED'
 
 
-class SingletonType(type):
-
-    def __call__(cls, *args, **kwargs):
-        if not hasattr(cls, "_instance"):
-
-            if not hasattr(cls, "_instance"):
-                cls._instance = super(SingletonType,
-                                      cls).__call__(*args, **kwargs)
-        return cls._instance
-
-
-class Scheduler(metaclass=SingletonType):
+class Scheduler:
 
     def __init__(self, pool_size=10):
         if pool_size <= 0:
@@ -51,8 +37,6 @@ class Scheduler(metaclass=SingletonType):
         """
         Добавление задачи в общий спасиок задач
         """
-        if len(self._tasks) >= self._pool_size:
-            raise PoolOverflowException()
 
         subtasks = self._unpack_subtaskstasks(task.dependencies)
 
@@ -84,23 +68,34 @@ class Scheduler(metaclass=SingletonType):
         self._run_event_loop()
 
     def restart(self):
-        pass
+        for task in self._tasks:
+            task.restart()
+
+    def pause(self):
+        self._status = SchedulerStatus.PAUSED
 
     def stop(self):
-        # здесь надобы сохранять состояние задач
-        self._status = SchedulerStatus.PAUSED
+        for task in self._tasks.copy():
+            task.stop()
+            self._tasks.remove(task)
+
+    def get_tasks_ready_to_run(self):
+
+        # нужно, чтобы ослеживать те таски, которые ушли на следующий круг
+        # например, задача выполнилась с ошибкой (или у нее есть незавершенные зависимости)
+        # то в таком случее ее повторное выполение откладывается на установленный интервал
+        # соответственно время следующего выполения сдвинется
+        # именно по-этому нжно еще раз отсортировать список задач
+        self._sort_tasks()
+
+        # фильтрация задач, которые уже должны быть исполнены
+        return list(filter(lambda t: t.awailable_to_run(), self._tasks.copy()))
 
     def _run_event_loop(self):
 
         # важно смотреть на все задачи, а не только на те, которые готовы
         while self._tasks and self._status == SchedulerStatus.RUNING:
-            # нужно, чтобы ослеживать те таски, которые ушли на следующий круг
-            self._sort_tasks()
-
-            tasks = self._tasks.copy()
-            # фильтрация задач, которые уже должны быть исполнены
-            tasks_ready_to_run = list(
-                filter(lambda t: t.awailable_to_run(), self._tasks))
+            tasks_ready_to_run = self.get_tasks_ready_to_run()
             # если есть задачи, которые должны быть выполнены - то yeld'имся по-ним
             # в противном случае - ждем (гасим поток) на время до первой ожидающей задачи
             # нужно не забывать, что при добавлении таска в очередь шедулера - они сортируются
@@ -119,9 +114,6 @@ class Scheduler(metaclass=SingletonType):
                     if task.is_done:
                         self._tasks.remove(task)
             else:
-                tm = (tasks[0]._start_at - datetime.now()).total_seconds()
+                tm = (self._tasks[0]._start_at - datetime.now()) \
+                    .total_seconds()
                 time.sleep(tm)
-
-
-def get_scheduler():
-    return Scheduler()

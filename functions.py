@@ -1,9 +1,9 @@
 import logging
+import random
 from pathlib import Path
 from typing import Union
 
 from exceptions import ArgumentNotPassed, IncorrentPathType
-
 from utils import CITIES, request
 
 logger = logging.getLogger(__name__)
@@ -29,31 +29,50 @@ def fetch_weather_forecast(city: str):
     return result
 
 
-def fetch_all_data():
+def fetch_data(city: str):
 
-    result1 = yield from fetch_weather_forecast(city="MOSCOW")
-    yield None
-    result2 = yield from fetch_weather_forecast(city="PARIS")
+    result = yield from fetch_weather_forecast(city)
 
-    return [result1, result2]
+    return result
 
 
-def calc_data():
-    result = yield from fetch_all_data()
-    return len(result)
+def extract_data(city):
+    result_by_city = yield from fetch_data(city)
+    temps = []
+
+    for forecast_by_date in result_by_city.get('forecasts'):
+        _temps_by_date = [
+            hour_forecast.get('temp')
+            for hour_forecast in forecast_by_date.get('hours')
+        ]
+        yield
+        temps.extend(_temps_by_date)
+        yield
+    return temps
 
 
-def pipe():
+def calc_data(city: str):
+    temps_data = yield from extract_data(city)
+    yield
+    mean_temp = round(sum(temps_data) / len(temps_data))
+    return mean_temp
 
-    res = yield from calc_data()
+
+def pipe_by_city(city: str):
+
+    res = yield from calc_data(city)
 
     return res
 
 
 def subtask():
-    b = 1 + 1
+    a = random.randint(1, 100)
     yield
-    return b
+    b = random.randint(1, 100)
+    yield
+    c = a + b
+
+    return c
 
 
 def _check_path_type(path: Union[Path, str]) -> Path:
