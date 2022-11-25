@@ -1,11 +1,10 @@
 import logging
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
-from time import sleep
 from typing import Union
 from aio.promise import Promise
 
-from utils import request
+from utils import CITIES, request
 
 pool = ThreadPool()
 
@@ -15,30 +14,31 @@ logger = logging.getLogger(__name__)
 def fetch_weather_forecast(city: str):
     if not city:
         raise Exception("Не указан параметр")
+
+    city_url = CITIES.get(city.upper())
+
+    if not city_url:
+        raise Exception("Такого города нет в списе")
+
     p = Promise()
 
-    def callback(f):
-        # Если включить, то будет ValueError: generator already executing
-        # наверно из-за того, что в while ниже уже yield-ится
-        p.set_result(f)
+    # Убрал работу с тредами (и колбеэками).
+    # Но так код получается блокирующим, конечно.
+    # Как сделать по-настоящему асинхронным запрос по http-
+    # стандартными средствами - не понял и в этих ваших интернетах не нашел
 
-    ar = pool.apply_async(request,
-                          args=(f'https://jsonplaceholder.typicode.com/todos/{city}', ),
-                          callback=callback)
-
-    # не знаю, кмк по-другому заставить ждать выполнения зароса. Если не поставить, то выходит
-    # раньше, чем успевает получить реузльтат
-    while not ar.ready():
-        yield p
-        sleep(0.001)    # dirty hack
+    result = request(city_url)
+    yield p
+    p.set_result(result=result)
 
     return p.result
 
 
 def fetch_all_data():
 
-    result1 = yield from fetch_weather_forecast(city="1")
-    result2 = yield from fetch_weather_forecast(city="2")
+    result1 = yield from fetch_weather_forecast(city="MOSCOW")
+    yield None
+    result2 = yield from fetch_weather_forecast(city="PARIS")
 
     return [result1, result2]
 

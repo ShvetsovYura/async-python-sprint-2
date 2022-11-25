@@ -1,4 +1,5 @@
 from enum import Enum
+import logging
 from aio.task import Task
 
 from datetime import datetime
@@ -7,8 +8,11 @@ from aio.task import Task
 
 import threading
 
-from exceptions import (NegativePoolSizeException, PoolOverflowException,
-                        PoolSizeNotReducedException, TaskExecutionTimeout)
+from exceptions import (LimitAttemptsExhausted, NegativePoolSizeException,
+                        PoolOverflowException, PoolSizeNotReducedException,
+                        TaskExecutionTimeout)
+
+logger = logging.getLogger(__name__)
 
 
 class SchedulerStatus(Enum):
@@ -24,7 +28,8 @@ class SingletonType(type):
         if not hasattr(cls, "_instance"):
             with SingletonType._instance_lock:
                 if not hasattr(cls, "_instance"):
-                    cls._instance = super(SingletonType, cls).__call__(*args, **kwargs)
+                    cls._instance = super(SingletonType,
+                                          cls).__call__(*args, **kwargs)
         return cls._instance
 
 
@@ -76,6 +81,7 @@ class Scheduler(metaclass=SingletonType):
         return result
 
     def run(self):
+        logger.info("Запуск расписания")
         self._status = SchedulerStatus.RUNING
         self._run_event_loop()
 
@@ -95,18 +101,22 @@ class Scheduler(metaclass=SingletonType):
 
             tasks = self._tasks.copy()
             # фильтрация задач, которые уже должны быть исполнены
-            tasks_ready_to_run = list(filter(lambda t: t.awailable_to_run(), self._tasks))
+            tasks_ready_to_run = list(
+                filter(lambda t: t.awailable_to_run(), self._tasks))
             # если есть задачи, которые должны быть выполнены - то yeld'имся по-ним
             # в противном случае - ждем (гасим поток) на время до первой ожидающей задачи
-            # нужно не забывать, что при добавлении таска в очередь шедулера - они сотрируются
+            # нужно не забывать, что при добавлении таска в очередь шедулера - они сортируются
             # по возростанию планируемого времени выполнения
             if tasks_ready_to_run:
                 for task in tasks_ready_to_run:
                     try:
                         task.run_step()
                     except TaskExecutionTimeout as e:
-                        print(e)
-                        self._tasks.remove(task)
+                        logger.error(e)
+                        task.stop()
+                    except LimitAttemptsExhausted as e:
+                        logger.error(e.message)
+                        task.stop()
 
                     if task.is_done:
                         self._tasks.remove(task)

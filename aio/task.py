@@ -105,7 +105,7 @@ class Task(Promise):
         """
 
         if self._tries != -1 and self._current_attempts >= self._tries:
-            raise LimitAttemptsExhausted(task_id=str(self._id))
+            raise LimitAttemptsExhausted()
 
         self._start_at += self._timeout_between_trying
         self.__recreate_coro_from_origin()
@@ -135,7 +135,8 @@ class Task(Promise):
         try:
             # если превышено вермя выполениня
             if self._timeout and self.running_duration > self._timeout:
-                self._coro.throw(TaskExecutionTimeout("Время на выполнение задачи истекло"))
+                self._coro.throw(
+                    TaskExecutionTimeout("Время на выполнение задачи истекло"))
 
             res = promise.result if promise else None
 
@@ -152,5 +153,7 @@ class Task(Promise):
             return
         except TaskExecutionTimeout:
             self._planning_trying_task()
-        except Exception:
+
+        except Exception as e:
+            logger.error(e.message)
             self._planning_trying_task()
