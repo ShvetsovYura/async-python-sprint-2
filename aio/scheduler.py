@@ -32,7 +32,7 @@ class Scheduler:
         Добавление задачи в общий спасиок задач
         """
 
-        subtasks = self._unpack_subtaskstasks(task.dependencies)
+        subtasks: list[Task] = self._unpack_subtasks(task.dependencies)
 
         if sum([len(self._tasks), len(subtasks)]) > self._pool_size:
             raise PoolOverflowException()
@@ -41,39 +41,39 @@ class Scheduler:
         self._tasks.extend(subtasks)
         self._sort_tasks()
 
-    def _sort_tasks(self):
+    def _sort_tasks(self) -> None:
         self._tasks.sort(key=lambda task: task._start_at, reverse=False)
 
-    def _unpack_subtaskstasks(self, tasks: list[Task]) -> list[Task]:
+    def _unpack_subtasks(self, tasks: list[Task]) -> list[Task]:
         """
         Рекурсивно распаковывает подзадачи текущей задачи
         и их подзадачи (и т.д.) в плоский список
         """
-        result = []
+        result: list[Task] = []
         for task in tasks:
             if len(task.dependencies) > 0:
-                result.extend(self._unpack_subtaskstasks(task.dependencies))
+                result.extend(self._unpack_subtasks(task.dependencies))
             result.append(task)
         return result
 
-    def run(self):
+    def run(self) -> None:
         logger.info("Запуск расписания")
         self._status = RunningStatus.RUNNING
         self._run_event_loop()
 
-    def restart(self):
+    def restart(self) -> None:
         for task in self._tasks:
             task.restart()
 
-    def pause(self):
+    def pause(self) -> None:
         self._status = RunningStatus.PAUSED
 
-    def stop(self):
+    def stop(self) -> None:
         for task in self._tasks.copy():
             task.stop()
             self._tasks.remove(task)
 
-    def get_tasks_ready_to_run(self):
+    def get_tasks_ready_to_run(self) -> list[Task]:
 
         # нужно, чтобы ослеживать те таски, которые ушли на следующий круг
         # например, задача выполнилась с ошибкой (или у нее есть незавершенные зависимости)
@@ -85,11 +85,11 @@ class Scheduler:
         # фильтрация задач, которые уже должны быть исполнены
         return list(filter(lambda t: t.awailable_to_run(), self._tasks.copy()))
 
-    def _run_event_loop(self):
+    def _run_event_loop(self) -> None:
 
         # важно смотреть на все задачи, а не только на те, которые готовы
         while self._tasks and self._status == RunningStatus.RUNNING:
-            tasks_ready_to_run = self.get_tasks_ready_to_run()
+            tasks_ready_to_run: list[Task] = self.get_tasks_ready_to_run()
             # если есть задачи, которые должны быть выполнены - то yeld'имся по-ним
             # в противном случае - ждем (гасим поток) на время до первой ожидающей задачи
             # нужно не забывать, что при добавлении таска в очередь шедулера - они сортируются
@@ -108,6 +108,6 @@ class Scheduler:
                     if task.is_done:
                         self._tasks.remove(task)
             else:
-                tm = (self._tasks[0]._start_at - datetime.now()) \
+                tm: float = (self._tasks[0]._start_at - datetime.now()) \
                     .total_seconds()
                 time.sleep(tm)

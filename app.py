@@ -18,16 +18,16 @@ if __name__ == '__main__':
     logger.info("Начала работы приложения")
     setup_log_config()
 
-    t1 = Task(coro=pipe_by_city,
-              tries=5,
-              dependencies=[Task(coro=subtask)],
-              city="MOSCOW")
-    t2 = Task(coro=pipe_by_city,
-              tries=5,
-              dependencies=[Task(coro=subtask)],
-              city="PARIS")
+    t1: Task = Task(coro=pipe_by_city,
+                    tries=5,
+                    dependencies=[Task(coro=subtask)],
+                    city="MOSCOW")
+    t2: Task = Task(coro=pipe_by_city,
+                    tries=5,
+                    dependencies=[Task(coro=subtask)],
+                    city="PARIS")
 
-    scheduler = Scheduler()
+    scheduler: Scheduler = Scheduler()
     scheduler.schedule_task(t1)
     scheduler.schedule_task(t2)
 

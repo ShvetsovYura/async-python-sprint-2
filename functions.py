@@ -1,7 +1,7 @@
 import logging
 import random
 from pathlib import Path
-from typing import Union
+from typing import Any, Generator, Optional, Union
 
 from exceptions import ArgumentNotPassed, IncorrentPathType
 from utils import CITIES, request
@@ -9,11 +9,11 @@ from utils import CITIES, request
 logger = logging.getLogger(__name__)
 
 
-def fetch_weather_forecast(city: str):
+def fetch_weather_forecast(city: str) -> Generator:
     if not city:
         raise ArgumentNotPassed()
 
-    city_url = CITIES.get(city.upper())
+    city_url: Optional[str] = CITIES.get(city.upper())
 
     if not city_url:
         raise Exception("Такого города нет в списе")
@@ -23,22 +23,23 @@ def fetch_weather_forecast(city: str):
     # Как сделать по-настоящему асинхронным запрос по http-
     # стандартными средствами - не понял и в этих ваших интернетах не нашел
 
-    result = request(city_url)
+    result: Any = request(city_url)
     yield
 
     return result
 
 
-def fetch_data(city: str):
+def fetch_data(city: str) -> Generator:
 
     result = yield from fetch_weather_forecast(city)
 
     return result
 
 
-def extract_data(city):
+def extract_data(city) -> Generator:
     result_by_city = yield from fetch_data(city)
-    temps = []
+
+    temps: list[int] = []
 
     for forecast_by_date in result_by_city.get('forecasts'):
         _temps_by_date = [
@@ -51,21 +52,21 @@ def extract_data(city):
     return temps
 
 
-def calc_data(city: str):
+def calc_data(city: str) -> Generator:
     temps_data = yield from extract_data(city)
     yield
-    mean_temp = round(sum(temps_data) / len(temps_data))
+    mean_temp: int = round(sum(temps_data) / len(temps_data))
     return mean_temp
 
 
-def pipe_by_city(city: str):
+def pipe_by_city(city: str) -> Generator:
 
     res = yield from calc_data(city)
 
     return res
 
 
-def subtask():
+def subtask() -> Generator:
     a = random.randint(1, 100)
     yield
     b = random.randint(1, 100)
