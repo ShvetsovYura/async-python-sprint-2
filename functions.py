@@ -1,13 +1,10 @@
 import logging
-from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from typing import Union
-from aio.promise import Promise
+
 from exceptions import ArgumentNotPassed, IncorrentPathType
 
 from utils import CITIES, request
-
-pool = ThreadPool()
 
 logger = logging.getLogger(__name__)
 
@@ -70,18 +67,16 @@ def _check_path_type(path: Union[Path, str]) -> Path:
 
 
 def create_directory(path: Union[Path, str]):
-    p = Promise()
     _path = _check_path_type(path)
-    yield p
+    yield
     _path.mkdir(parents=True, exist_ok=True)
-    yield p
-    return p
+    yield
+    return None
 
 
 def create_file(path: Union[Path, str], filename: str):
-    p = Promise()
     _path = _check_path_type(path)
-    yield p
+    yield
     with open(Path.joinpath(_path, filename), 'w'):
         pass
 

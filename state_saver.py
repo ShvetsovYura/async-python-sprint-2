@@ -7,30 +7,25 @@ from typing import Any
 
 from uuid import UUID
 
-from aio.promise import Promise
-
 
 class EnhancedJsonEncoder(json.JSONEncoder):
 
     def default(self, o: Any) -> Any:
-        if isinstance(o, Decimal):
-            return str(o)
-        if isinstance(o, datetime):
-            return o.strftime("%Y-%m-%d %H:%M:%S")
-        if isinstance(o, date):
-            return o.strftime("%Y-%m-%d")
-        if isinstance(o, Enum):
-            return o.name
-        if isinstance(o, types.GeneratorType):
-            return o.__name__
-        if isinstance(o, types.FunctionType):
-            return o.__name__
-        if isinstance(o, UUID):
-            return str(o)
-        if isinstance(o, timedelta):
-            return o.total_seconds()
-        if isinstance(o, Promise):
-            return 'promise'
+
+        serialized_types = {
+            date: o.strftime("%Y-%m-%d"),
+            datetime: o.strftime("%Y-%m-%d %H:%M:%S"),
+            Decimal: str(o),
+            Enum: o.name,
+            timedelta: o.total_seconds(),
+            types.GeneratorType: o.__name__,
+            types.FunctionType: o.__name__,
+            UUID: str(o)
+        }
+
+        for _type in serialized_types:
+            if isinstance(o, _type):
+                return serialized_types[_type]
         return super().default(o)
 
 
