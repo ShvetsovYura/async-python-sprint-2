@@ -76,3 +76,4 @@ class RunningStatus(Enum):
     RUNNING = 'RUNNING'
     PAUSED = 'PAUSED'
     COMPLETE = "COMPLETE"
+    STOP_PENDING = "STOP_PENDING"

@@ -4,14 +4,13 @@ from datetime import datetime, timedelta
 from typing import Any, Callable, Generator, Optional
 from uuid import UUID
 
-from aio.promise import TaskResult
+from aio.task_result import TaskResult
 from exceptions import LimitAttemptsExhausted, TaskExecutionTimeout
-from state_saver import StateSaver
 from utils import RunningStatus
 
 logger = logging.getLogger(__name__)
 
-TIMEOUT_BETWEEN_RETRY_SECONDS: float = 2.1
+TIMEOUT_BETWEEN_RETRY_SECONDS: float = 5.1
 
 
 class Task:
@@ -19,24 +18,22 @@ class Task:
 
     def __init__(self,
                  coro: Callable,
-                 state_saver: StateSaver,
                  start_at: datetime = datetime.now(),
                  dependencies: Optional[list['Task']] = None,
                  max_working_time: Optional[timedelta] = None,
                  tries: int = 0,
                  *args,
                  **kwargs):
-        super().__init__()
         self._init_dt: datetime = datetime.now()
         self._start_dt: Optional[datetime] = None
         self._timeout: Optional[timedelta] = max_working_time
 
-        self._state_saver = state_saver
         self._args: tuple[Any] = args
         self._kwargs: dict[str, Any] = kwargs
 
         # сохраняем корутину для создания новой если теущую задачу нужно перезапустить
-        self._coro: Generator = coro(*self._args, **self._kwargs)
+        # self._coro: Generator = coro(*self._args, **self._kwargs)
+        self._coro: Optional[Generator] = None
         self._origin_coro: Callable = coro
 
         self._status: RunningStatus = RunningStatus.INIT
@@ -53,10 +50,6 @@ class Task:
         self._timeout_between_trying: timedelta = timedelta(
             seconds=TIMEOUT_BETWEEN_RETRY_SECONDS)
         self._current_attempts: int = 0
-        self._steps: list[Any] = []
-
-        # При инициализации таски - проворачиваем ее один раз со значпением None,
-        # т.е. инициализация
 
         self.result: Any = None
 
@@ -67,6 +60,10 @@ class Task:
     @property
     def id(self) -> uuid.UUID:
         return self._id
+
+    @property
+    def status(self) -> RunningStatus:
+        return self._status
 
     @property
     def dependencies(self):
@@ -96,12 +93,16 @@ class Task:
 
         return (datetime.now() - self._start_dt)
 
+    def _init_coro(self) -> None:
+        self._coro = self._origin_coro(*self._args, **self._kwargs)
+
     def _recreate_coro_from_origin(self):
 
         # если количество попыток исчерпалось - прибить корутину
-        self._coro.close()
+        if self._coro:
+            self._coro.close()
         # ...и создать новую из оригинальной
-        self._coro = self._origin_coro(*self._args, **self._kwargs)
+        self._init_coro()
 
     def _planning_trying_task(self):
         """
@@ -127,31 +128,34 @@ class Task:
         self._status = RunningStatus.PAUSED
 
     def stop(self) -> None:
-        self._coro.close()
-        self._status = RunningStatus.COMPLETE
+        if self._coro:
+            self._coro.close()
+            self._status = RunningStatus.COMPLETE
 
     def run_step(self) -> None:
 
-        self._status = RunningStatus.RUNNING
         # если время для запуска еще не наступило
         if not self._start_dt:
             self._start_dt = datetime.now()
 
+        if not self._coro:
+            self._init_coro()
+            self._status = RunningStatus.RUNNING
+
         try:
             # если превышено вермя выполениня
             if self._timeout and self.running_duration > self._timeout:
-                self._coro.throw(TaskExecutionTimeout())
-            logger.debug(f"tid:{self.id} {self.result}")
-            # результат пироворачивания генератора - общеание -
+                if self._coro:
+                    self._coro.throw(TaskExecutionTimeout())
+            # результат пироворачивания генsератора - общеание -
             # объект, содержащий результат выполения
-            self.result = self._coro.send(self.result)
+            if self._coro:
+                self.result = self._coro.send(self.result)
 
-            # self._steps.append(self.result)
+            # self._steps.append(self.result)
         except StopIteration as e:
             self.result = e.value
-            logger.info(f"value tid:{self.id} = {self.result}")
             self._status = RunningStatus.COMPLETE
-            self._state_saver.save_task(self)
             return
 
         except Exception as e:

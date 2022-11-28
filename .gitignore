@@ -5,3 +5,4 @@ __pycache__/
 .venv
 .vscode
 task_.json
+cached_tasks
