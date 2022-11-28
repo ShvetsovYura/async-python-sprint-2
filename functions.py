@@ -16,29 +16,26 @@ def fetch_weather_forecast(city: str) -> Generator:
     city_url: Optional[str] = CITIES.get(city.upper())
 
     if not city_url:
-        raise Exception("Такого города нет в списе")
+        raise Exception("Такого города нет в списке")
 
     # Убрал работу с тредами (и колбеэками).
     # Но так код получается блокирующим, конечно.
     # Как сделать по-настоящему асинхронным запрос по http-
     # стандартными средствами - не понял и в этих ваших интернетах не нашел
 
-    result: Any = request(city_url)
-    yield
+    result: Any = yield request(city_url)
 
     return result
 
 
 def fetch_data(city: str) -> Generator:
-
     result = yield from fetch_weather_forecast(city)
-
     return result
 
 
 def extract_data(city) -> Generator:
     result_by_city = yield from fetch_data(city)
-
+    logger.info(f"Данные получены по городу: {city}")
     temps: list[int] = []
 
     for forecast_by_date in result_by_city.get('forecasts'):

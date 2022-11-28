@@ -1,5 +1,5 @@
 class TaskResult:
-    """ Класс хранит состояние вызова """
+    """ Класс реализует протокол дескриптора """
 
     def __get__(self, instance, owner):
         return instance.__dict__['result']

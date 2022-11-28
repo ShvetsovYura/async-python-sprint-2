@@ -1,10 +1,15 @@
 import json
+import os
+import pickle
 import types
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
+from pathlib import Path
 from typing import Any
 from uuid import UUID
+
+from aio.task import Task
 
 
 class EnhancedJsonEncoder(json.JSONEncoder):
@@ -28,19 +33,32 @@ class EnhancedJsonEncoder(json.JSONEncoder):
         return super().default(serialized_object)
 
 
-class StateSaver:
+class StateWorker:
 
-    @staticmethod
-    def save_task(task):
-        # Наверно я тупой =)
-        # я пробовал сохранять в пикл - но он выдает ошибку, что не может сериализовать
-        # тип generator
-        # Пытался сохранять каждый шаг в отедльном элементе списка steps Таски
-        # но не понятно как восстанавливать (подставлять) ту функцию при
-        # десеериализации/сеарелизации
-        # и прокручивать корутину до нужного шага в 'холостую'
-        # идеи есть, но все какой-то колхозный колхоз имхо
-        pass
+    def save_tasks(self, tasks: list[Task]):
+        for pending_task in tasks.copy():
+            with open(f'cached_tasks/{str(pending_task.id)}', 'wb+') as stream:
+                pending_task._coro = None
+                for d in pending_task._dependencies.copy():
+                    d._coro = None
+
+                pickle.dump(pending_task, stream)
+
+    def restore_tasks(self) -> list[Task]:
+        tasks = []
+
+        path = Path(__file__).resolve().parent / 'cached_tasks'
+        if not path.exists():
+            path.mkdir()
+
+        with os.scandir(path) as entities:
+            for ent in entities:
+                if ent.is_file():
+                    with open(ent, 'rb') as stream:
+                        tt = pickle.load(stream)
+                        tasks.append(tt)
+
+        return tasks
 
 
 class StateDeserializer:
