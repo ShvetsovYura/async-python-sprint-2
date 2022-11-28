@@ -1,53 +1,50 @@
+import json
+import types
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from enum import Enum
-import json
-import types
 from typing import Any
-
 from uuid import UUID
-
-from aio.promise import Promise
 
 
 class EnhancedJsonEncoder(json.JSONEncoder):
 
-    def default(self, o: Any) -> Any:
-        if isinstance(o, Decimal):
-            return str(o)
-        if isinstance(o, datetime):
-            return o.strftime("%Y-%m-%d %H:%M:%S")
-        if isinstance(o, date):
-            return o.strftime("%Y-%m-%d")
-        if isinstance(o, Enum):
-            return o.name
-        if isinstance(o, types.GeneratorType):
-            return o.__name__
-        if isinstance(o, types.FunctionType):
-            return o.__name__
-        if isinstance(o, UUID):
-            return str(o)
-        if isinstance(o, timedelta):
-            return o.total_seconds()
-        if isinstance(o, Promise):
-            return 'promise'
-        return super().default(o)
+    def default(self, serialized_object: Any) -> Any:
+
+        serialized_types = {
+            date: lambda: serialized_object.strftime("%Y-%m-%d"),
+            datetime: lambda: serialized_object.strftime("%Y-%m-%d %H:%M:%S"),
+            Decimal: lambda: str(serialized_object),
+            Enum: lambda: serialized_object.name,
+            timedelta: lambda: serialized_object.total_seconds(),
+            types.GeneratorType: lambda: serialized_object.__name__,
+            types.FunctionType: lambda: serialized_object.__name__,
+            UUID: lambda: str(serialized_object)
+        }
+
+        for _type in serialized_types:
+            if isinstance(serialized_object, _type):
+                return serialized_types[_type]()
+        return super().default(serialized_object)
 
 
 class StateSaver:
 
     @staticmethod
     def save_task(task):
-        with open('task_.json', 'w+') as t:
-            json.dump(task.__dict__, t, cls=EnhancedJsonEncoder)
+        # Наверно я тупой =)
+        # я пробовал сохранять в пикл - но он выдает ошибку, что не может сериализовать
+        # тип generator
+        # Пытался сохранять каждый шаг в отедльном элементе списка steps Таски
+        # но не понятно как восстанавливать (подставлять) ту функцию при
+        # десеериализации/сеарелизации
+        # и прокручивать корутину до нужного шага в 'холостую'
+        # идеи есть, но все какой-то колхозный колхоз имхо
+        pass
 
 
 class StateDeserializer:
 
     @staticmethod
     def restore_task():
-
-        # как восстанавливать задачи - я так и не понял, ведь есть зависимости, статус корутин и т.д
-        # как заставить это работаь - не вкурил
-        # чатик и ментор слабо помогают в этом, если есть возможность - подскажите, я не против сделать, главное понять как
         pass

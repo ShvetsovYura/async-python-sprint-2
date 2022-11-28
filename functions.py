@@ -1,66 +1,79 @@
 import logging
-from multiprocessing.pool import ThreadPool
+import random
 from pathlib import Path
-from time import sleep
-from typing import Union
-from aio.promise import Promise
+from typing import Any, Generator, Optional, Union
 
-from utils import request
-
-pool = ThreadPool()
+from exceptions import ArgumentNotPassed, IncorrentPathType
+from utils import CITIES, request
 
 logger = logging.getLogger(__name__)
 
 
-def fetch_weather_forecast(city: str):
+def fetch_weather_forecast(city: str) -> Generator:
     if not city:
-        raise Exception("Не указан параметр")
-    p = Promise()
+        raise ArgumentNotPassed()
 
-    def callback(f):
-        # Если включить, то будет ValueError: generator already executing
-        # наверно из-за того, что в while ниже уже yield-ится
-        p.set_result(f)
+    city_url: Optional[str] = CITIES.get(city.upper())
 
-    ar = pool.apply_async(request,
-                          args=(f'https://jsonplaceholder.typicode.com/todos/{city}', ),
-                          callback=callback)
+    if not city_url:
+        raise Exception("Такого города нет в списе")
 
-    # не знаю, кмк по-другому заставить ждать выполнения зароса. Если не поставить, то выходит
-    # раньше, чем успевает получить реузльтат
-    while not ar.ready():
-        yield p
-        sleep(0.001)    # dirty hack
+    # Убрал работу с тредами (и колбеэками).
+    # Но так код получается блокирующим, конечно.
+    # Как сделать по-настоящему асинхронным запрос по http-
+    # стандартными средствами - не понял и в этих ваших интернетах не нашел
 
-    return p.result
+    result: Any = request(city_url)
+    yield
+
+    return result
 
 
-def fetch_all_data():
+def fetch_data(city: str) -> Generator:
 
-    result1 = yield from fetch_weather_forecast(city="1")
-    result2 = yield from fetch_weather_forecast(city="2")
+    result = yield from fetch_weather_forecast(city)
 
-    return [result1, result2]
-
-
-def calc_data():
-    result = yield from fetch_all_data()
-    return len(result)
+    return result
 
 
-def pipe():
-    p = Promise()
-    res = yield from calc_data()
+def extract_data(city) -> Generator:
+    result_by_city = yield from fetch_data(city)
 
-    yield p
+    temps: list[int] = []
+
+    for forecast_by_date in result_by_city.get('forecasts'):
+        _temps_by_date = [
+            hour_forecast.get('temp')
+            for hour_forecast in forecast_by_date.get('hours')
+        ]
+        yield
+        temps.extend(_temps_by_date)
+        yield
+    return temps
+
+
+def calc_data(city: str) -> Generator:
+    temps_data = yield from extract_data(city)
+    yield
+    mean_temp: int = round(sum(temps_data) / len(temps_data))
+    return mean_temp
+
+
+def pipe_by_city(city: str) -> Generator:
+
+    res = yield from calc_data(city)
+
     return res
 
 
-def subtask():
-    p = Promise()
-    b = 1 + 1
-    yield p
-    return b
+def subtask() -> Generator:
+    a = random.randint(1, 100)
+    yield
+    b = random.randint(1, 100)
+    yield
+    c = a + b
+
+    return c
 
 
 def _check_path_type(path: Union[Path, str]) -> Path:
@@ -70,22 +83,20 @@ def _check_path_type(path: Union[Path, str]) -> Path:
     elif isinstance(path, str):
         return Path(path)
     else:
-        raise Exception("Incorrect path type")
+        raise IncorrentPathType()
 
 
 def create_directory(path: Union[Path, str]):
-    p = Promise()
     _path = _check_path_type(path)
-    yield p
+    yield
     _path.mkdir(parents=True, exist_ok=True)
-    yield p
-    return p
+    yield
+    return None
 
 
 def create_file(path: Union[Path, str], filename: str):
-    p = Promise()
     _path = _check_path_type(path)
-    yield p
+    yield
     with open(Path.joinpath(_path, filename), 'w'):
         pass
 

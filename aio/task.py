@@ -1,65 +1,68 @@
-from enum import Enum
 import logging
-from typing import Any, Callable, Generator, Optional
 import uuid
 from datetime import datetime, timedelta
+from typing import Any, Callable, Generator, Optional
+from uuid import UUID
 
-from aio.promise import Promise
+from aio.promise import TaskResult
 from exceptions import LimitAttemptsExhausted, TaskExecutionTimeout
 from state_saver import StateSaver
+from utils import RunningStatus
 
 logger = logging.getLogger(__name__)
 
-
-class TaskStatus(Enum):
-    INIT = "INIT"
-    RUNNING = "RUNNING"
-    PAUSED = "PAUSED"
-    COMPLETE = "COMPLETE"
+TIMEOUT_BETWEEN_RETRY_SECONDS: float = 2.1
 
 
-class Task(Promise):
+class Task:
+    result = TaskResult()
 
     def __init__(self,
                  coro: Callable,
+                 state_saver: StateSaver,
                  start_at: datetime = datetime.now(),
-                 dependencies: list['Task'] = [],
+                 dependencies: Optional[list['Task']] = None,
                  max_working_time: Optional[timedelta] = None,
                  tries: int = 0,
                  *args,
                  **kwargs):
         super().__init__()
-        self._init_dt = datetime.now()
+        self._init_dt: datetime = datetime.now()
         self._start_dt: Optional[datetime] = None
-        self._timeout = max_working_time
+        self._timeout: Optional[timedelta] = max_working_time
 
-        self._args = args
-        self._kwargs = kwargs
+        self._state_saver = state_saver
+        self._args: tuple[Any] = args
+        self._kwargs: dict[str, Any] = kwargs
 
         # сохраняем корутину для создания новой если теущую задачу нужно перезапустить
         self._coro: Generator = coro(*self._args, **self._kwargs)
-        self._origin_coro = coro
+        self._origin_coro: Callable = coro
 
-        self._status = TaskStatus.INIT
-        self._id = uuid.uuid4()
-        self._dependencies = dependencies
+        self._status: RunningStatus = RunningStatus.INIT
+        self._id: UUID = uuid.uuid4()
 
-        self._start_at = start_at
+        if dependencies and isinstance(dependencies, list):
+            self._dependencies = dependencies
+        else:
+            self._dependencies: list[Task] = []
 
-        self._tries = tries
-        self._timeout_between_trying = timedelta(seconds=2.1)
-        self._current_attempts = 0
+        self._start_at: datetime = start_at
+
+        self._tries: int = tries
+        self._timeout_between_trying: timedelta = timedelta(
+            seconds=TIMEOUT_BETWEEN_RETRY_SECONDS)
+        self._current_attempts: int = 0
         self._steps: list[Any] = []
 
         # При инициализации таски - проворачиваем ее один раз со значпением None,
         # т.е. инициализация
-        p = Promise()
-        p.set_result(None)
-        self.set_result(None)
+
+        self.result: Any = None
 
     @property
     def is_done(self) -> bool:
-        return True if self._status == TaskStatus.COMPLETE else False
+        return True if self._status == RunningStatus.COMPLETE else False
 
     @property
     def id(self) -> uuid.UUID:
@@ -68,6 +71,9 @@ class Task(Promise):
     @property
     def dependencies(self):
         return self._dependencies
+
+    def restart(self):
+        self._recreate_coro_from_origin()
 
     def _check_subtasks_is_done(self) -> bool:
         # если хотя бы одна из подзадач не готова - значит текущая таска не готова к работе
@@ -90,8 +96,7 @@ class Task(Promise):
 
         return (datetime.now() - self._start_dt)
 
-    def __recreate_coro_from_origin(self):
-        self._current_attempts += 1
+    def _recreate_coro_from_origin(self):
 
         # если количество попыток исчерпалось - прибить корутину
         self._coro.close()
@@ -105,29 +110,29 @@ class Task(Promise):
         """
 
         if self._tries != -1 and self._current_attempts >= self._tries:
-            raise LimitAttemptsExhausted(task_id=str(self._id))
+            raise LimitAttemptsExhausted()
 
         self._start_at += self._timeout_between_trying
-        self.__recreate_coro_from_origin()
+        self._current_attempts += 1
+        self._recreate_coro_from_origin()
 
     def awailable_to_run(self) -> bool:
         """ Проверяет, готова ли задача для выполнения """
 
         if self.time_left_to_running >= 0 and self._check_subtasks_is_done():
             return True
-        else:
-            return False
+        return False
 
     def pause(self) -> None:
-        self._status = TaskStatus.PAUSED
+        self._status = RunningStatus.PAUSED
 
     def stop(self) -> None:
         self._coro.close()
-        self._status = TaskStatus.COMPLETE
+        self._status = RunningStatus.COMPLETE
 
-    def run_step(self, promise: Optional[Promise] = None) -> None:
+    def run_step(self) -> None:
 
-        self._status = TaskStatus.RUNNING
+        self._status = RunningStatus.RUNNING
         # если время для запуска еще не наступило
         if not self._start_dt:
             self._start_dt = datetime.now()
@@ -135,22 +140,23 @@ class Task(Promise):
         try:
             # если превышено вермя выполениня
             if self._timeout and self.running_duration > self._timeout:
-                self._coro.throw(TaskExecutionTimeout("Время на выполнение задачи истекло"))
-
-            res = promise.result if promise else None
-
+                self._coro.throw(TaskExecutionTimeout())
+            logger.debug(f"tid:{self.id} {self.result}")
             # результат пироворачивания генератора - общеание -
             # объект, содержащий результат выполения
-            promise = self._coro.send(res)
-            self._steps.append(res)
+            self.result = self._coro.send(self.result)
+
+            # self._steps.append(self.result)
         except StopIteration as e:
-            logger.info(f"value: {e.value}")
-            self.set_result(e.value)
-            self._steps.append(e.value)
-            self._status = TaskStatus.COMPLETE
-            StateSaver.save_task(self)
+            self.result = e.value
+            logger.info(f"value tid:{self.id} = {self.result}")
+            self._status = RunningStatus.COMPLETE
+            self._state_saver.save_task(self)
             return
-        except TaskExecutionTimeout:
-            self._planning_trying_task()
-        except Exception:
+
+        except Exception as e:
+            if hasattr(e, 'message'):
+                logger.error(e.message)  # type: ignore
+            else:
+                logger.error(e)
             self._planning_trying_task()

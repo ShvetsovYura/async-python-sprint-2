@@ -1,36 +1,40 @@
-class PoolOverflowException(Exception):
+class BaseException(Exception):
 
-    def __init__(
-            self,
-            message="Превышено количество одновренменно доступных к выполнению задач ") -> None:
-        super().__init__(message)
+    def __init__(self) -> None:
+        super().__init__()
 
 
-class TaskExecutionTimeout(Exception):
-    pass
+class PoolOverflowException(BaseException):
+    message = "Превышено количество одновренменно доступных к выполнению задач "
 
 
-class SubtasksNotDoneException():
-    pass
+class TaskExecutionTimeout(BaseException):
+    message = "Превышено время выполнения задачи"
 
 
-class PoolSizeNotReducedException(Exception):
-
-    def __init__(self,
-                 message="Уменьшать количество одновременно выполняемых задач нельзя") -> None:
-        super().__init__(message)
+class SubtasksNotDoneException(BaseException):
+    message = "Подзадачи еще не выполнены"
 
 
-class NegativePoolSizeException(Exception):
-
-    def __init__(
-            self,
-            message='Нельзя делать отрицательный размер одновременно выполняемых задач') -> None:
-
-        super().__init__(message)
+class PoolSizeNotReducedException(BaseException):
+    message = "Уменьшать количество одновременно выполняемых задач нельзя"
 
 
-class LimitAttemptsExhausted(Exception):
+class NegativePoolSizeException(BaseException):
+    message = 'Нельзя делать отрицательный размер одновременно выполняемых задач'
 
-    def __init__(self, task_id: str, message="Лимит попыток запуска задачи исчерпан") -> None:
-        super().__init__(f"{message}:{task_id}")
+
+class LimitAttemptsExhausted(BaseException):
+    message = "Лимит попыток запуска задачи исчерпан"
+
+
+class DataFetchingException(BaseException):
+    message = "Ошибка во время выполенния HTTP запроса"
+
+
+class ArgumentNotPassed(BaseException):
+    message = "Аргумент не передан"
+
+
+class IncorrentPathType(BaseException):
+    message = "Неверны тип пути"
