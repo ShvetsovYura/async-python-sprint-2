@@ -1,5 +1,4 @@
 import json
-import pickle
 import types
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -10,42 +9,34 @@ from uuid import UUID
 
 class EnhancedJsonEncoder(json.JSONEncoder):
 
-    def default(self, o: Any) -> Any:
+    def default(self, serialized_object: Any) -> Any:
 
         serialized_types = {
-            date: lambda: o.strftime("%Y-%m-%d"),
-            datetime: lambda: o.strftime("%Y-%m-%d %H:%M:%S"),
-            Decimal: lambda: str(o),
-            Enum: lambda: o.name,
-            timedelta: lambda: o.total_seconds(),
-            types.GeneratorType: lambda: o.__name__,
-            types.FunctionType: lambda: o.__name__,
-            UUID: lambda: str(o)
+            date: lambda: serialized_object.strftime("%Y-%m-%d"),
+            datetime: lambda: serialized_object.strftime("%Y-%m-%d %H:%M:%S"),
+            Decimal: lambda: str(serialized_object),
+            Enum: lambda: serialized_object.name,
+            timedelta: lambda: serialized_object.total_seconds(),
+            types.GeneratorType: lambda: serialized_object.__name__,
+            types.FunctionType: lambda: serialized_object.__name__,
+            UUID: lambda: str(serialized_object)
         }
 
         for _type in serialized_types:
-            if isinstance(o, _type):
+            if isinstance(serialized_object, _type):
                 return serialized_types[_type]()
-        return super().default(o)
+        return super().default(serialized_object)
 
 
 class StateSaver:
 
     @staticmethod
     def save_task(task):
-        bt = pickle.dumps(task, protocol=5)
-        with open('task_.json', 'w+') as t:
-            json.dump(task.__dict__, t, cls=EnhancedJsonEncoder)
+        pass
 
 
 class StateDeserializer:
 
     @staticmethod
     def restore_task():
-
-        # как восстанавливать задачи - я так и не понял, ведь есть зависимости,
-        # статус корутин и т.д
-        # как заставить это работаь - не вкурил
-        # чатик и ментор слабо помогают в этом, если есть возможность - подскажите,
-        # я не против сделать, главное понять как
         pass

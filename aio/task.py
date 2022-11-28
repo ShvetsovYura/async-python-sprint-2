@@ -11,14 +11,17 @@ from utils import RunningStatus
 
 logger = logging.getLogger(__name__)
 
+TIMEOUT_BETWEEN_RETRY_SECONDS: float = 2.1
+
 
 class Task:
     result = TaskResult()
 
     def __init__(self,
                  coro: Callable,
+                 state_saver: StateSaver,
                  start_at: datetime = datetime.now(),
-                 dependencies: list['Task'] = [],
+                 dependencies: Optional[list['Task']] = None,
                  max_working_time: Optional[timedelta] = None,
                  tries: int = 0,
                  *args,
@@ -28,6 +31,7 @@ class Task:
         self._start_dt: Optional[datetime] = None
         self._timeout: Optional[timedelta] = max_working_time
 
+        self._state_saver = state_saver
         self._args: tuple[Any] = args
         self._kwargs: dict[str, Any] = kwargs
 
@@ -37,12 +41,17 @@ class Task:
 
         self._status: RunningStatus = RunningStatus.INIT
         self._id: UUID = uuid.uuid4()
-        self._dependencies: list[Task] = dependencies
+
+        if dependencies and isinstance(dependencies, list):
+            self._dependencies = dependencies
+        else:
+            self._dependencies: list[Task] = []
 
         self._start_at: datetime = start_at
 
         self._tries: int = tries
-        self._timeout_between_trying: timedelta = timedelta(seconds=2.1)
+        self._timeout_between_trying: timedelta = timedelta(
+            seconds=TIMEOUT_BETWEEN_RETRY_SECONDS)
         self._current_attempts: int = 0
         self._steps: list[Any] = []
 
@@ -112,8 +121,7 @@ class Task:
 
         if self.time_left_to_running >= 0 and self._check_subtasks_is_done():
             return True
-        else:
-            return False
+        return False
 
     def pause(self) -> None:
         self._status = RunningStatus.PAUSED
@@ -142,12 +150,9 @@ class Task:
         except StopIteration as e:
             self.result = e.value
             logger.info(f"value tid:{self.id} = {self.result}")
-            # self._steps.append(e.value)
             self._status = RunningStatus.COMPLETE
-            StateSaver.save_task(self)
+            self._state_saver.save_task(self)
             return
-        except TaskExecutionTimeout:
-            self._planning_trying_task()
 
         except Exception as e:
             if hasattr(e, 'message'):
