@@ -10,16 +10,16 @@ class TestScheduler(TestCase):
 
         self._sched = Scheduler()
 
-    def test__increase_pool_size_to__success(self):
+    def test_increase_pool_size_to_success(self):
         self._sched.increase_pool_size_to(20)
 
         self.assertEqual(20, self._sched._pool_size)
 
-    def test__increase_pool_size_to__reduce(self):
+    def test_increase_pool_size_to_reduce(self):
         self._sched.increase_pool_size_to(15)
 
         self.assertRaises(PoolSizeNotReducedException)
 
-    def test__create__with_negative_pool_size(self):
+    def test_create_with_negative_pool_size(self):
         with self.assertRaises(NegativePoolSizeException):
             Scheduler(pool_size=-1)

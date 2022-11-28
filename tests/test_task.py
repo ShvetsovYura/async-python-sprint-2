@@ -1,7 +1,9 @@
 from unittest import TestCase
 
-from aio.task import Task, TaskStatus
+from aio.task import Task
 from exceptions import LimitAttemptsExhausted
+from state_saver import StateSaver
+from utils import RunningStatus
 
 
 class TestTask(TestCase):
@@ -15,52 +17,56 @@ class TestTask(TestCase):
         raise Exception("Что-то пошло не так")
         return 2
 
-    def test__subtasks_is_done__no_subtasks(self):
+    def test_subtasks_is_done_no_subtasks(self):
 
-        t = Task(coro=self._coro)
+        t = Task(coro=self._coro, state_saver=StateSaver())
         result = t._check_subtasks_is_done()
 
         self.assertEqual(True, result)
 
-    def test__subtasks_is_done__not_done_subtasks(self):
-
+    def test_subtasks_is_done_not_done_subtasks(self):
+        state_saver = StateSaver()
         t = Task(coro=self._coro,
-                 dependencies=[Task(coro=self._coro)],
+                 state_saver=state_saver,
+                 dependencies=[Task(coro=self._coro, state_saver=state_saver)],
                  tries=-1)
         result = t._check_subtasks_is_done()
 
         self.assertEqual(False, result)
 
-    def test__subtasks_is_done__one_not_done_subtasks(self):
+    def test_subtasks_is_done_one_not_done_subtasks(self):
         ''' Если хотя бы одна задача не выполнена '''
-
-        done_subtask = Task(coro=self._coro)
-        done_subtask._status == TaskStatus.COMPLETE
+        state_saver = StateSaver()
+        done_subtask = Task(coro=self._coro, state_saver=state_saver)
+        done_subtask._status == RunningStatus.COMPLETE
         t = Task(coro=self._coro,
-                 dependencies=[Task(coro=self._coro)],
+                 dependencies=[Task(coro=self._coro, state_saver=state_saver)],
+                 state_saver=state_saver,
                  tries=-1)
         result = t._check_subtasks_is_done()
 
         self.assertEqual(False, result)
 
-    def test__unlimited_trying_task(self):
+    def test_unlimited_trying_task(self):
         """ Проверка бесконечного запуска таска """
-
-        t = Task(coro=self._coro_exeption, tries=-1)
+        state_saver = StateSaver()
+        t = Task(coro=self._coro_exeption, state_saver=state_saver, tries=-1)
         for i in range(1000):
             t.run_step()
 
-        self.assertEqual(TaskStatus.RUNNING, t._status)
+        self.assertEqual(RunningStatus.RUNNING, t._status)
         self.assertEqual(500, t._current_attempts)
 
-    def test__zero_trying_task(self):
-        t = Task(coro=self._coro_exeption, tries=0)
+    def test_zero_trying_task(self):
+        state_saver = StateSaver()
+        t = Task(coro=self._coro_exeption, state_saver=state_saver, tries=0)
         t.run_step()
 
         self.assertRaises(LimitAttemptsExhausted)
 
-    def test__once_trying_task(self):
-        t = Task(coro=self._coro_exeption, tries=1)
+    def test_once_trying_task(self):
+        state_saver = StateSaver()
+        t = Task(coro=self._coro_exeption, state_saver=state_saver, tries=1)
         with self.assertRaises(LimitAttemptsExhausted):
             t.run_step()
             t.run_step()
