@@ -55,7 +55,7 @@ class TestTask(TestCase):
             t.run_step()
 
         self.assertEqual(RunningStatus.RUNNING, t._status)
-        self.assertEqual(500, t._current_attempts)
+        self.assertEqual(999, t._current_attempts)
 
     def test_zero_trying_task(self):
         state_saver = StateSaver()
